@@ -13,11 +13,14 @@ jobs:
       uses: microsoft/setup-msbuild@v2
       
     - name: Build x86 Release
-      # 强制使用 x86 平台进行 Release 编译
-      run: msbuild wechat_ocr.sln /p:Configuration=Release /p:Platform=x86
+      # 1. 修正了 sln 文件的路径: vs.proj/wechat_ocr.sln
+      # 2. 增加了 PlatformToolset=v143 以适配 GitHub 的 VS2022 环境
+      run: msbuild vs.proj/wechat_ocr.sln /p:Configuration=Release /p:Platform=x86 /p:PlatformToolset=v143
       
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
         name: wcocr_x86_dll
-        path: Release/wcocr.dll
+        # 注意：编译输出目录可能会因为项目设置不同而变化
+        # 如果下载后发现是空的，可能在 vs.proj/Release 下
+        path: vs.proj/Release/wcocr.dll
