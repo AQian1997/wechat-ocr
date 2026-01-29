@@ -1,4 +1,4 @@
-name: Build x86 DLL (CMake)
+name: Build x86 DLL (Pure C++)
 
 on: [push]
 
@@ -8,27 +8,71 @@ jobs:
     
     steps:
     - uses: actions/checkout@v4
-      with:
-        submodules: recursive  # 确保子模块也被下载，防止缺文件
     
-    # 新增步骤：强制安装 32位 Python，解决 CMake 报错
-    - name: Set up Python x86
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.10'
-        architecture: 'x86' 
-    
-    - name: Configure CMake (x86)
-      # 强制指定 Win32 架构
-      run: cmake -S . -B build -A Win32
-      
+    # 1. 使用 vcpkg 安装 32位 的 protobuf 库
+    - name: Install Protobuf (x86) via vcpkg
+      run: |
+        vcpkg install protobuf:x86-windows-static
+        vcpkg integrate install
+
+    # 2. 暴力重写 CMakeLists.txt
+    # 我们排除掉 pyspt.cpp (Python绑定)，只保留核心 OCR 功能和 C 导出接口
+    # 这样生成的 DLL 不需要依赖 Python 环境，易语言调用更稳定
+    - name: Overwrite CMakeLists.txt
+      shell: powershell
+      run: |
+        $content = @"
+        cmake_minimum_required(VERSION 3.10)
+        project(wcocr)
+
+        # 寻找 vcpkg 安装的 protobuf
+        find_package(Protobuf CONFIG REQUIRED)
+
+        # 定义源文件 (排除 pyspt.cpp)
+        set(SOURCES 
+            api.cpp 
+            mojocall.cpp 
+            wechatocr.cpp 
+            ocr_common.pb.cc 
+            ocr_wx3.pb.cc 
+            ocr_wx4.pb.cc
+        )
+
+        # 创建 DLL (共享库)
+        add_library(wcocr SHARED `${SOURCES})
+
+        # 链接 protobuf (使用 vcpkg 提供的 Lite 版本)
+        # 如果 Lite 版本找不到，尝试链接标准版本
+        if(TARGET protobuf::libprotobuf-lite)
+            target_link_libraries(wcocr PRIVATE protobuf::libprotobuf-lite)
+        else()
+            target_link_libraries(wcocr PRIVATE protobuf::libprotobuf)
+        endif()
+
+        # 链接 Windows 基础网络/系统库
+        target_link_libraries(wcocr PRIVATE ws2_32 shlwapi)
+
+        # 设置生成后缀为 .dll
+        set_target_properties(wcocr PROPERTIES SUFFIX ".dll")
+        
+        # 针对 MSVC 编译器的一些设置
+        if(MSVC)
+            target_compile_options(wcocr PRIVATE /MT) # 静态链接运行时，减少依赖
+        endif()
+        "@
+        Set-Content -Path CMakeLists.txt -Value $content
+
+    # 3. 配置 CMake (指定使用 vcpkg 工具链)
+    - name: Configure CMake
+      run: cmake -S . -B build -A Win32 -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" -DVCPKG_TARGET_TRIPLET=x86-windows-static
+
+    # 4. 编译
     - name: Build
-      # 进行 Release 编译
       run: cmake --build build --config Release
-      
+
+    # 5. 上传结果
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: wcocr_x86_dll
-        # 编译完成后，文件通常在 build/Release 目录下
+        name: wcocr_x86_dll_pure
         path: build/Release/wcocr.dll
