@@ -1,4 +1,4 @@
-name: Build x86 DLL
+name: Build x86 DLL (CMake)
 
 on: [push]
 
@@ -9,18 +9,17 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     
-    - name: Add msbuild to PATH
-      uses: microsoft/setup-msbuild@v2
+    - name: Configure CMake (x86)
+      # 使用 CMake 自动生成工程文件，强制指定 Win32 (x86) 架构
+      run: cmake -S . -B build -A Win32
       
-    - name: Build x86 Release
-      # 1. 修正了 sln 文件的路径: vs.proj/wechat_ocr.sln
-      # 2. 增加了 PlatformToolset=v143 以适配 GitHub 的 VS2022 环境
-      run: msbuild vs.proj/wechat_ocr.sln /p:Configuration=Release /p:Platform=x86 /p:PlatformToolset=v143
+    - name: Build
+      # 进行 Release 编译
+      run: cmake --build build --config Release
       
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
         name: wcocr_x86_dll
-        # 注意：编译输出目录可能会因为项目设置不同而变化
-        # 如果下载后发现是空的，可能在 vs.proj/Release 下
-        path: vs.proj/Release/wcocr.dll
+        # CMake 编译出的文件通常在这里
+        path: build/Release/wcocr.dll
