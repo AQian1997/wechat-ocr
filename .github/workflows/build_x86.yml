@@ -1,0 +1,23 @@
+name: Build x86 DLL
+
+on: [push]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Add msbuild to PATH
+      uses: microsoft/setup-msbuild@v1.1
+      
+    - name: Build x86 Release
+      # 强制使用 x86 平台进行 Release 编译
+      run: msbuild wechat_ocr.sln /p:Configuration=Release /p:Platform=x86
+      
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: wcocr_x86_dll
+        path: Release/wcocr.dll
