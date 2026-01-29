@@ -7,17 +7,17 @@ jobs:
     runs-on: windows-latest
     
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     
     - name: Add msbuild to PATH
-      uses: microsoft/setup-msbuild@v1.1
+      uses: microsoft/setup-msbuild@v2
       
     - name: Build x86 Release
       # 强制使用 x86 平台进行 Release 编译
       run: msbuild wechat_ocr.sln /p:Configuration=Release /p:Platform=x86
       
     - name: Upload Artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: wcocr_x86_dll
         path: Release/wcocr.dll
